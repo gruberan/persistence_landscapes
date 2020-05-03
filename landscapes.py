@@ -4,6 +4,7 @@ import itertools
 import re
 from persistence_landscapes.linear_btree import Linear_BTree
 import numpy as np
+from copy import deepcopy
 
 class LandscapeFunction:
     def __call__(self, x):
@@ -144,13 +145,16 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
         
         self.xmin, self.xmax = min(X), max(X)
         
-    def insert(x, y):
+        self.modified_since_abs = True
+        
+    def insert(self, x, y):
+        self.modified_since_abs = True
         if self.xmax < x:
             self.xmax = x
         if self.xmin > x:
             self.xmin = x
         if not self.memoization == 'None':
-            self._cache[node.x] = node.y
+            self._cache[x] = y
         self._data.insert(x, y, delay_update=False)
 
     def evaluate(self, x):
@@ -158,24 +162,27 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
             return 0
         if not self.memoization == 'None' and x in self._cache:
             return self._cache[x]
-        val = self._data.evaluate(x,self.root)
+        val = self._data.evaluate(x)
         if self.memoization == 'All':
-                self._cache[x] = vals
+            self._cache[x] = val
         return val
             
     def get_xvalues(self): # result is sorted
-        return tuple(a.x for a in self.root)
+        return tuple(x for x in self)
         
     def get_xyvalues(self):
         if self._cache == None:
-            X, Y = zip(*((node.x, node.y) for node in self.root))
+            X, Y = zip(*((x, self.evaluate(x)) for x in self))
         else:
             X, Y = list(self._cache.keys()), list(self._cache.values())
         return X, Y
     
-    def __abs__(self): # Changes self
+    def __abs__(self):
+        """Returns the pointwise absolute value function |f|(x) = |f(x)|, where f is self."""
+        if not self.modified_since_abs:
+            return self._abs
+        self._abs = deepcopy(self)
         y2 = None
-        ell = []
         for x1, x2 in self._pairwise_iterator():
             if y2 == None:
                 y1 = self.evaluate(x1)
@@ -185,35 +192,23 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
             if y2 < 0:
                 if y1 > 0:
                     x0 = (y2*x1 - y1*x2)/(y2 - y1)
-                    print(x1,x0,x2)
-                    print(y1,0,y2)
-                    print('')
-                    ell += [(x0,0)]
-                    #self.insert(x0,0,None,delay_update=True)#(y1 - y2)/(x2 - x1))
+                    self._abs.insert(x0,0)
                     if not self.memoization == 'None':
-                        self._cache[x0] = 0
-                ell += [(x1,-y1)]
-                #self.insert(x1,-y1,None,delay_update=True)#(y2 - y1)/(x2 - x1))
+                        self._abs._cache[x0] = 0
+                self._abs.insert(x1,-y1)
                 if not self.memoization == 'None':
-                    self._cache[x2] = -y2
-            elif y1 < 0: #and y2 >= 0
+                    self._abs._cache[x2] = -y2
+            elif y1 < 0: # and y2 >= 0
                 if y2 > 0:
                     x0 = (y2*x1 - y1*x2)/(y2 - y1)
-                    print(x1,x0,x2)
-                    print(y1,0,y2)
-                    print('')
-                    #self.insert(x0,0,None,delay_update=True)#(y2 - y1)/(x2 - x1))
-                    ell += [(x0,0)]
+                    self._abs.insert(x0,0)
                     if not self.memoization == 'None':
-                        self._cache[x0] = 0
-                ell += [(x1,-y1)]
-                #self.insert(x1,-y1,None,delay_update=True)#,(y1 - y2)/(x2 - x1))
+                        self._abs._cache[x0] = 0
+                self._abs.insert(x1,-y1)
                 if not self.memoization == 'None':
-                    self._cache[x1] = -y1
-        for l in ell:
-            self.insert(l[0],l[1],None,delay_update=True)
-        self.update_all()
-        return self
+                    self._abs._cache[x1] = -y1
+        self.modified_since_abs = False
+        return self._abs
     
     def __iter__(self):
         """ Yields sorted x values. """
@@ -439,7 +434,7 @@ class Landscape_Reader:
             seen = set()
             seen_add = seen.add
             L = [x for x in L if not (x in seen or seen_add(x))]
-            landscape_functions.append(LandscapeFunction_Interpolating(*tuple(zip(*L))))
+            landscape_functions.append(LandscapeFunction_Interpolating(*tuple(zip(*L)), already_sorted=True))
             barcode = newbarcode 
         return Landscape(landscape_functions)
     def __from_PointLists(landscape_pointlists):
