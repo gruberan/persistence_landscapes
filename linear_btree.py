@@ -1,13 +1,13 @@
 import itertools
 
 class _LinearNode:
-    """ Binary search tree node that stores linear parameters to successor node. """
     def __init__(self,x,y,m=None):
         self.left, self.right = None, None
         self.x, self.y = x, y
         if not m == None:
             self.m, self.b = m, y - m*x
-    def get_prev(self,root): # returns in-order previous node
+    def get_prev(self,root):
+        """Returns in-order previous node."""
         if not self.left == None:
             return self.left.get_rightmost()
         prev = None
@@ -20,7 +20,8 @@ class _LinearNode:
             else:
                 break
         return prev
-    def get_next(self,root): # returns in-order successor node
+    def get_next(self,root):
+        """Returns in-order successor node."""
         if not self.right == None:
             return self.right.get_leftmost()
         succ = None
@@ -33,21 +34,24 @@ class _LinearNode:
             else:
                 break
         return succ
-    def get_leftmost(self): # returns leftmost node of subtree with root self
+    def get_leftmost(self):
+        """Returns leftmost node of subtree with root self."""
         current = self
         while not current == None:
             if current.left == None:
                 break
             current = current.left
         return current
-    def get_rightmost(self): # returns rightmost node of subtree with root self
+    def get_rightmost(self):
+        """Returns rightmost node of subtree with root self."""
         current = self
         while not current == None:
             if current.right == None:
                 break
             current = current.right
         return current
-    def __iter__(self): # Ordered traversal
+    def __iter__(self):
+        """Ordered traversal."""
         if self.left:
             for node in self.left:
                 yield node
@@ -55,17 +59,25 @@ class _LinearNode:
         if self.right:
             for node in self.right:
                 yield node
-    def _pairwise_iterator(self): # Ordered traversal with consecutive pairs
+    def _pairwise_iterator(self):
+        """Ordered traversal with consecutive pairs."""
         i, j = itertools.tee(self)
         next(j,None)
         return zip(i,j)
     
-    
 class Linear_BTree:
+    """Binary search tree class stores linear parameters to successor node. Capable of linear interpolation between nodes."""
+    
     def __init__(self):
         self.root = None
         
     def insert(self, x, y, m=None, delay_update=False):
+        """Inserts a new node into the tree.
+        
+        x, y: Coordinates of node to insert
+        m: slope to next node. Can be taken as an arg if precomputed (such as when converting a list)
+        delay_update (bool): if True, will not update the linear parameters of adjacent node after insert
+        """
         if self.root == None:
             self.root = _LinearNode(x,y,m)
         else:
@@ -75,7 +87,8 @@ class Linear_BTree:
         if x < node.x:
             if node.left == None:
                 node.left = _LinearNode(x,y,m)
-                if not delay_update and m == None: # update linear parameters for new node
+                if not delay_update and m == None:
+                    # Update linear parameters for new node
                     node.left.m = (node.y - y)/(node.x - x)
                     node.left.b = y - node.left.m * x
                 if not delay_update:
@@ -90,18 +103,19 @@ class Linear_BTree:
             if node.right == None:
                 node.right = _LinearNode(x,y,m)
                 if not delay_update and m == None:
-                    # Update linear parameters for new successor node
+                    # Update linear parameters for new node
                     succ = node.right.get_next(self.root)
                     if not succ == None:
                         node.right.m = (succ.y - y)/(succ.x - x)
                         node.right.b = y - node.right.m * x
                 if not delay_update:
-                    # Update linear parameters for node
+                    # Update linear parameters for current node
                     node.m = (y - node.y)/(x - node.x)
                     node.b = node.y - node.m * node.x
             else:
                 self._insert(node.right,x,y,m)
-        else: # if node with same x value already exists, overwrites
+        else:
+            # Overwrites if node with same x value already exists
             if not (node.y == y) or not delay_update:
                 node.y = y
                 if m == None:
@@ -120,6 +134,13 @@ class Linear_BTree:
                     
     @classmethod
     def from_list(cls, X, Y, already_sorted=False):
+        """Returns a new linear binary tree.
+        
+        Arguments:
+            X (list): X values
+            Y (list): Y values
+            already_sorted (list): indicates that X and Y are already in sorted order by X value
+        """
         new_lbtree = cls()
         if already_sorted:
             M = [(y2 - y1)/(x2 - x1) if x1 != x2 else 0.0 for x1, x2, y1, y2 in zip(X,X[1:],Y,Y[1:])]
@@ -138,6 +159,7 @@ class Linear_BTree:
         self._from_list(nodes, mid+1, b)
         
     def _update(self):
+        """Updates the slope and intercept for all nodes."""
         for node1, node2 in self.root._pairwise_iterator():
             node1.m = (node2.y - node1.y)/(node2.x - node1.x)
             node1.b = node1.y - node1.m * node1.x
