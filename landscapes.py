@@ -2,71 +2,9 @@ import csv
 import math
 import itertools
 import re
+from persistence_landscapes.linear_btree import Linear_BTree
+import numpy as np
 
-## Exact landscapes retain all information on piecewise cuts
-## For lookup speed, the list of x,y values is kept in a binary search tree
-class _LinearNode:
-    """ Binary search tree node that stores linear parameters to successor node. """
-    def __init__(self,x,y,m=None):
-        self.left, self.right = None, None
-        self.x, self.y = x, y
-        if not m == None:
-            self.m, self.b = m, y - m*x
-    def get_prev(self,root): # returns in-order previous node
-        if not self.left == None:
-            return self.left.get_rightmost()
-        prev = None
-        while not root == None:
-            if self.x > root.x:
-                prev = root
-                root = root.right
-            elif self.x < root.x:
-                root = root.left
-            else:
-                break
-        return prev
-    def get_next(self,root): # returns in-order successor node
-        if not self.right == None:
-            return self.right.get_leftmost()
-        succ = None
-        while not root == None:
-            if self.x < root.x:
-                succ = root
-                root = root.left
-            elif self.x > root.x:
-                root = root.right
-            else:
-                break
-        return succ
-    def get_leftmost(self): # returns leftmost node of subtree with root self
-        current = self
-        while not current == None:
-            if current.left == None:
-                break
-            current = current.left
-        return current
-    def get_rightmost(self): # returns rightmost node of subtree with root self
-        current = self
-        while not current == None:
-            if current.right == None:
-                break
-            current = current.right
-        return current
-    def __iter__(self): # Ordered traversal
-        if self.left:
-            for node in self.left:
-                yield node
-        yield self
-        if self.right:
-            for node in self.right:
-                yield node
-    def _pairwise_iterator(self): # Ordered traversal with consecutive pairs
-        import itertools
-        i, j = itertools.tee(self)
-        next(j,None)
-        return zip(i,j)
-    
- 
 class LandscapeFunction:
     def __call__(self, x):
         return self.evaluate(x)
@@ -96,7 +34,6 @@ class LandscapeFunction:
             return LandscapeFunction_Fixed_Lookup(mesh,[self.evaluate(x) for x in mesh])
     def _pairwise_iterator(self):
         """Iterates as (i, i+1)."""
-        import itertools
         i, j = itertools.tee(self)
         next(j,None)
         return zip(i,j)
@@ -106,7 +43,7 @@ class LandscapeFunction:
         """
         integral = 0
         y2 = None
-        if X == None:
+        if x_values == None:
             pwiter = self._pairwise_iterator()
         else:
             pwiter = zip(x_values,x_values[1:])
@@ -187,126 +124,55 @@ class LandscapeFunction_Zero(LandscapeFunction):
         yield 0
 
 class LandscapeFunction_Interpolating(LandscapeFunction):
-    def __init__(self, X, Y, already_sorted=False, cache_values='local'):
+    def __init__(self, X, Y, already_sorted=False, memoization='local'):
         """
         
-        cache_values controls memoization.
-            - 'none'    don't cache anything. Use for when you will only evaluate between x-values with no reason to expect repeated x-values.
-            - 'local'   cache value of function only on its x values. Use when function will be evaluated on its set of x-values frequently, and rarely in between. Recommended for landscape functions in ensembles.
-            - 'all'     cache all x values after every evaluation.
+        already_sorted (bool): indicates that the X values are already sorted.
+        
+        memoization (str): This flag can have several values:
+            - 'None'    don't cache anything. Use for when you will only evaluate between x-values with no reason to expect repeated x-values.
+            - 'Local'   cache value of function only on its x values. Use when function will be evaluated on its set of x-values frequently, and rarely in between. Recommended for landscape functions in ensembles.
+            - 'All'     cache all x values after every evaluation.
         """
-        self.root = None
-        self.cache_values = cache_values
-        if cache_values == 'none':
+        self._data = Linear_BTree.from_list(X, Y, already_sorted)
+        
+        self.memoization = memoization
+        if memoization == 'none':
             self._cache = None
         else:
             self._cache = dict(zip(X,Y))
+        
         self.xmin, self.xmax = min(X), max(X)
-        if already_sorted:
-            self.SortedListToTree(X, Y)
-        else:
-            self.ListToTree(X,Y)
-    def insert(self,x,y,m=None,delay_update=False):
+        
+    def insert(x, y):
         if self.xmax < x:
             self.xmax = x
         if self.xmin > x:
             self.xmin = x
-        if self.root == None:
-            self.root = _LinearNode(x,y,m)
-        else:
-            self._insert(self.root,x,y,m,delay_update)
-    def _insert(self,node,x,y,m=None,delay_update=False): 
-        if x < node.x:
-            if node.left == None:
-                node.left = _LinearNode(x,y,m)
-                if not delay_update and m == None: # update linear parameters for new node
-                    node.left.m = (node.y - y)/(node.x - x)
-                    node.left.b = y - node.left.m * x
-                if not delay_update: # update linear parameters for node previous to new node
-                    prev = node.left.get_prev(self.root)
-                    if not prev == None:
-                        prev.m = (y - prev.y)/(x - prev.x)
-                        prev.b = prev.y - prev.m * prev.x
-            else:
-                self._insert(node.left,x,y,m)
-        elif x > node.x:
-            if node.right == None:
-                node.right = _LinearNode(x,y,m)
-                if not delay_update and m == None: # update linear parameters for new node
-                    succ = node.right.get_next(self.root)
-                    if not succ == None:
-                        node.right.m = (succ.y - y)/(succ.x - x)
-                        node.right.b = y - node.right.m * x
-                if not delay_update: # update linear parameters for node
-                    node.m = (y - node.y)/(x - node.x)
-                    node.b = node.y - node.m * node.x
-            else:
-                self._insert(node.right,x,y,m)
-        else: # if node with same x value already exists, overwrites
-            if not (node.y == y) or not delay_update:
-                node.y = y
-                if m == None: # update linear parameters for successor node
-                    succ = node.get_next(self.root)
-                    if not succ == None:
-                        node.m = (succ.y - y)/(succ.x - x)
-                        node.b = y - node.m * x
-                else:
-                    node.m, node.b = m, y - m * x
-                # update linear parameters for previous node
-                prev = node.get_prev(self.root)
-                if not prev == None:
-                    prev.m = (y - prev.y)/(x - prev.x)
-                    prev.b = prev.y - prev.m * prev.x
-            if not self.cache_values == 'none':
-                self._cache[node.x] = node.y
-    def update_all(self):
-        for node1,node2 in self.root._pairwise_iterator():
-            node1.m = (node2.y - node1.y)/(node2.x - node1.x)
-            node1.b = node1.y - node1.m * node1.x
-        self.root.get_rightmost().m, self.root.get_rightmost().b = 0.0, 0.0
-    def SortedListToTree(self, X, Y):
-        M = [(y2 - y1)/(x2 - x1) if x1 != x2 else 0.0 for x1, x2, y1, y2 in zip(X,X[1:],Y,Y[1:])]
-        self._ListToTree(list(zip(X,Y,M+[0.0])),0,len(X)-1)
-    def ListToTree(self, X, Y):
-        self._ListToTree([(x,y,None) for x,y in zip(X,Y)],0,len(X)-1)
-        self.update_all()
-    def _ListToTree(self, nodes, a, b):
-        if a > b:
-            return
-        mid = int(a + (b - a) / 2)
-        self.insert(nodes[mid][0],nodes[mid][1],nodes[mid][2],delay_update=True)
-        self._ListToTree(nodes,a,mid-1)
-        self._ListToTree(nodes,mid+1,b)
+        if not self.memoization == 'None':
+            self._cache[node.x] = node.y
+        self._data.insert(x, y, delay_update=False)
+
     def evaluate(self, x):
         if (x < self.xmin) or (x > self.xmax):
             return 0
-        if not self.cache_values == 'none' and x in self._cache:
+        if not self.memoization == 'None' and x in self._cache:
             return self._cache[x]
-        return self._evaluate(x,self.root)
-    def _evaluate(self, x, node): # Find largest node.x below x and return linear interpolation
-        if node == None:
-            return None
-        if x == node.x:
-            if not self.cache_values == 'none':
-                self._cache[x] = node.y
-            return node.y
-        if x > node.x:
-            y = self._evaluate(x,node.right)
-            if y == None:
-                y = (node.m)*x + node.b
-                if self.cache_values == 'all':
-                    self._cache[x] = y
-            return y
-        if x < node.x:
-            return self._evaluate(x,node.left)
-    def get_xvalues(self): #result is sorted
+        val = self._data.evaluate(x,self.root)
+        if self.cache_values == 'all':
+                self._cache[x] = vals
+        return val
+            
+    def get_xvalues(self): # result is sorted
         return tuple(a.x for a in self.root)
+        
     def get_xyvalues(self):
         if self._cache == None:
             X, Y = zip(*((node.x, node.y) for node in self.root))
         else:
             X, Y = list(self._cache.keys()), list(self._cache.values())
         return X, Y
+    
     def __abs__(self): # Changes self
         y2 = None
         ell = []
@@ -348,10 +214,11 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
             self.insert(l[0],l[1],None,delay_update=True)
         self.update_all()
         return self
+    
     def __iter__(self):
-        #Iterators of LandscapeFunctions yield sorted x values
-        for node in self.root:
-            yield node.x
+        """ Yields sorted x values. """
+        for x in self._data:
+            yield x
 
 class LandscapeFunction_LinearCombination(LandscapeFunction):
     def __init__(self,coefficients,landscape_functions,no_cacheQ=None):
@@ -482,6 +349,8 @@ class Landscape:
         return [xmin + delta*k for k in range(num_bins + 1)]
     def write(self,filename):
         LandscapeWriter.write(self,filename)
+    def integrate(self):
+        return sum([self[k].integrate() for k in range(len(self))])
     def __add__(self,other):
         return Landscape_LinearCombination([1.0,1.0],[self,other])
     def __sub__(self,other):
@@ -633,6 +502,8 @@ class Landscape_Reader:
             return Landscape_Reader.__read_lan_file(filename)
         else:
             return Landscape_Reader.__from_PointLists(filename)
+    def read_fromlist(L):
+        return Landscape_Reader.__from_Barcode([list(x) for x in L if not np.inf in x])
 
 # TODO
 #class Landscape_Writer: 
