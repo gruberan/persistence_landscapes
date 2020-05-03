@@ -159,7 +159,7 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
         if not self.memoization == 'None' and x in self._cache:
             return self._cache[x]
         val = self._data.evaluate(x,self.root)
-        if self.cache_values == 'all':
+        if self.memoization == 'All':
                 self._cache[x] = vals
         return val
             
@@ -190,11 +190,11 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
                     print('')
                     ell += [(x0,0)]
                     #self.insert(x0,0,None,delay_update=True)#(y1 - y2)/(x2 - x1))
-                    if not self.cache_values == 'none':
+                    if not self.memoization == 'None':
                         self._cache[x0] = 0
                 ell += [(x1,-y1)]
                 #self.insert(x1,-y1,None,delay_update=True)#(y2 - y1)/(x2 - x1))
-                if not self.cache_values == 'none':
+                if not self.memoization == 'None':
                     self._cache[x2] = -y2
             elif y1 < 0: #and y2 >= 0
                 if y2 > 0:
@@ -204,11 +204,11 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
                     print('')
                     #self.insert(x0,0,None,delay_update=True)#(y2 - y1)/(x2 - x1))
                     ell += [(x0,0)]
-                    if not self.cache_values == 'none':
+                    if not self.memoization == 'None':
                         self._cache[x0] = 0
                 ell += [(x1,-y1)]
                 #self.insert(x1,-y1,None,delay_update=True)#,(y1 - y2)/(x2 - x1))
-                if not self.cache_values == 'none':
+                if not self.memoization == 'None':
                     self._cache[x1] = -y1
         for l in ell:
             self.insert(l[0],l[1],None,delay_update=True)
