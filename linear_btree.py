@@ -167,7 +167,7 @@ class Linear_BTree:
     
     def evaluate(self, x):
         """ Find largest node.x below x and return linear interpolation. """
-        return _evaluate(x, self.root)
+        return self._evaluate(x, self.root)
         
     def _evaluate(self, x, node):
         if node == None:
@@ -181,7 +181,13 @@ class Linear_BTree:
             return y
         if x < node.x:
             return self._evaluate(x,node.left)
-            
+    
+    def deepcopy(self):
+        new_lbtree = Linear_BTree()
+        for node in self:
+            new_lbtree.insert(node.x, node.y, node.m, delay_update=True)
+        return new_lbtree
+    
     def __iter__(self):
         """ Yields sorted x values. """
         for node in self.root:

@@ -167,7 +167,7 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
             self._cache[x] = val
         return val
             
-    def get_xvalues(self): # result is sorted
+    def get_xvalues(self):
         return tuple(x for x in self)
         
     def get_xyvalues(self):
@@ -215,7 +215,10 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
         for x in self._data:
             yield x
 
-class LandscapeFunction_LinearCombination(LandscapeFunction):
+class LandscapeFunction_Ensemble(LandscapeFunction):
+
+
+class LandscapeFunction_LinearCombination(LandscapeFunction_Ensemble):
     def __init__(self,coefficients,landscape_functions,no_cacheQ=None):
         self.coefficients, self.landscape_functions = coefficients, landscape_functions
         self.xmin, self.xmax = min(landscape_function.xmin for landscape_function in self.landscape_functions), max(landscape_function.xmax for landscape_function in self.landscape_functions)
@@ -263,7 +266,7 @@ class LandscapeFunction_LinearCombination(LandscapeFunction):
         for x in merge(*self.landscape_functions):
             yield x
 
-class LandscapeFunction_Product():
+class LandscapeFunction_Product(LandscapeFunction_Ensemble):
     def __init__(self,L1,L2):
         self.L1, self.L2 = L1, L2
     def __iter__(self):
@@ -305,8 +308,7 @@ class LandscapeFunction_Product():
         return integral
   
  
-
-def inner(landscape_function1, landscape_function2,X=None):
+def inner_product(landscape_function1, landscape_function2,X=None):
     return abs(landscape_function1 - landscape_function2).integrate(X)
 
 class Landscape:
