@@ -70,9 +70,9 @@ class LandscapeFunction:
     def __sub__(self,other):
         return LandscapeFunction_LinearCombination([1.0,-1.0],[self,other])
     def __mul__(self,other):
-        return LandscapeFunction_LinearCombination([float(other)],[self])
+        return LandscapeFunction_LinearCombination([np.double(other)],[self])
     def __truediv__(self,other):
-        return LandscapeFunction_LinearCombination([1.0/float(other)],[self])
+        return LandscapeFunction_LinearCombination([1.0/np.double(other)],[self])
     def __matmul__(self,other): #Integral of product
         return abs(self - other).integrate()
 
@@ -255,13 +255,13 @@ class LandscapeFunction_LinearCombination(LandscapeFunction_Ensemble):
               self._cache[x] -= other.evaluate(x)
         return self
     def __imul__(self,other):
-        self.coefficients = [float(other)*coefficient for coefficient in self.coefficients]
+        self.coefficients = [np.double(other)*coefficient for coefficient in self.coefficients]
         if not self._cache == None:
           for x in self._cache:
-              self._cache[x] *= float(other)
+              self._cache[x] *= np.double(other)
         return self
     def __itruediv__(self,other):
-        self.coefficients = [float(1.0/other)*coefficient for coefficient in self.coefficients]
+        self.coefficients = [np.double(1.0/other)*coefficient for coefficient in self.coefficients]
         if not self._cache == None:
           for x in self._cache:
               self._cache[x] *= (1.0/other)
@@ -345,9 +345,9 @@ class Landscape:
     def __sub__(self,other):
         return Landscape_LinearCombination([1.0,-1.0],[self,other])
     def __mul__(self,other):
-        return Landscape_LinearCombination([float(other)],[self])
+        return Landscape_LinearCombination([np.double(other)],[self])
     def __truediv__(self,other):
-        return Landscape_LinearCombination([1.0/float(other)],[self])
+        return Landscape_LinearCombination([1.0/np.double(other)],[self])
     def __abs__(self):
         return Landscape([abs(landscape_function) for landscape_function in self.landscape_functions])
     def __matmul__(self,other):
@@ -384,9 +384,9 @@ class Landscape_LinearCombination(Landscape):
 
 def average(collection):
     if all([issubclass(entry.__class__,Landscape) for entry in collection]):
-        return Landscape_LinearCombination([float(1)/float(len(collection))] * len(collection) , collection)
+        return Landscape_LinearCombination([np.double(1)/np.double(len(collection))] * len(collection) , collection)
     if all([issubclass(entry.__class__,LandscapeFunction) for entry in collection]):
-        return LandscapeFunction_LinearCombination([float(1)/float(len(collection))] * len(collection) , collection)
+        return LandscapeFunction_LinearCombination([np.double(1)/np.double(len(collection))] * len(collection) , collection)
 
 
 class Landscape_Reader:
@@ -443,7 +443,7 @@ class Landscape_Reader:
         with open(filename,'r') as barcodefile:
             barcodereader = csv.reader(barcodefile,delimiter=' ')
             for row in barcodereader:
-                b,d = [float(x) for x in row]
+                b,d = [np.double(x) for x in row]
                 if b >= 0 and d >= 0 and b < ERRORMAX and d < ERRORMAX: #throw out infinite -1, 0 barcodes and anything that extends beyond sample diameter
                     data.append([b,d])
                 else:
@@ -471,14 +471,14 @@ class Landscape_Reader:
                     number = re.compile("(-*\\d\\.*\\d*)e*(-*[\\d]*)")
                     numbermatch = number.findall(newpointmatches[0][0])
                     if numbermatch[0][1] == '':
-                        a = float(numbermatch[0][0])
+                        a = np.double(numbermatch[0][0])
                     else:
-                        a = float(numbermatch[0][0])*10**float(numbermatch[0][1])
+                        a = np.double(numbermatch[0][0])*10**np.double(numbermatch[0][1])
                     numbermatch = number.findall(newpointmatches[0][1])
                     if numbermatch[0][1] == '':
-                        b = float(numbermatch[0][0])
+                        b = np.double(numbermatch[0][0])
                     else:
-                        b = float(numbermatch[0][0])*10**float(numbermatch[0][1])
+                        b = np.double(numbermatch[0][0])*10**np.double(numbermatch[0][1])
                     if not ( a == -1.0 or a == -0.5 or Landscape_Reader.__almostequal(a,lasta) ): # This disallows duplicate entries. Adjust EPSILON as necessary.
                         current.append([a,b])
                         lasta = a
