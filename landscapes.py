@@ -216,7 +216,13 @@ class LandscapeFunction_Interpolating(LandscapeFunction):
             yield x
 
 class LandscapeFunction_Ensemble(LandscapeFunction):
-
+    def __init__(self):
+        pass
+    def __iter__(self):
+        #Iterates through sorted x-values of member LandscapeFunctions
+        from heapq import merge
+        for x in merge(*self.landscape_functions):
+            yield x
 
 class LandscapeFunction_LinearCombination(LandscapeFunction_Ensemble):
     def __init__(self,coefficients,landscape_functions,no_cacheQ=None):
@@ -259,25 +265,11 @@ class LandscapeFunction_LinearCombination(LandscapeFunction_Ensemble):
         if not self._cache == None:
           for x in self._cache:
               self._cache[x] *= (1.0/other)
-          return self         
-    def __iter__(self):
-        #Iterates through sorted x-values of member LandscapeFunctions
-        from heapq import merge
-        for x in merge(*self.landscape_functions):
-            yield x
+          return self
 
 class LandscapeFunction_Product(LandscapeFunction_Ensemble):
     def __init__(self,L1,L2):
         self.L1, self.L2 = L1, L2
-    def __iter__(self):
-        from heapq import merge
-        for x in merge(*[self.L1,self.L2]):
-            yield x
-    def _pairwise_iterator(self): # iterates as (i, i+1)
-        import itertools
-        i, j = itertools.tee(self)
-        next(j,None)
-        return zip(i,j)
     def integrate(self,X=None):
         integral = 0
         y2 = None
